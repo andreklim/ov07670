@@ -1,0 +1,3 @@
+/home/nikita/Загрузки/arduino_uno_ov7670/cpp/CMakeFiles/rebuild_cache.dir
+/home/nikita/Загрузки/arduino_uno_ov7670/cpp/CMakeFiles/edit_cache.dir
+/home/nikita/Загрузки/arduino_uno_ov7670/cpp/CMakeFiles/DisplayImage.dir

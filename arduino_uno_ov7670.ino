@@ -96,6 +96,7 @@
 #define REG_COM11		0x3b	/* Control 11 */
 #define COM11_NIGHT	        0x80	/* NIght mode enable */
 #define COM11_NMFR	        0x60	/* Two bit NM frame rate */
+#define COM11_NMFR_N	        0x00	/* Two bit NM frame rate */
 #define COM11_HZAUTO	        0x10	/* Auto detect 50/60 Hz */
 #define	COM11_50HZ	        0x08	/* Manual 50Hz select */
 #define COM11_EXP		0x02
@@ -336,6 +337,8 @@ const struct regval_list ov7670_default_regs[] PROGMEM = {//from the linux drive
 	*/
 	{ REG_HSTART, 0x13 }, { REG_HSTOP, 0x01 },
 	{ REG_HREF, 0xb6 }, { REG_VSTART, 0x02 },
+//	{ REG_HREF, 0xb6 }, { REG_VSTART, 0x02 },
+
 	{ REG_VSTOP, 0x7a }, { REG_VREF, 0x0a },
 
 	{ REG_COM3, 0 }, { REG_COM14, 0 },
@@ -410,14 +413,15 @@ const struct regval_list ov7670_default_regs[] PROGMEM = {//from the linux drive
 	{ 0xc9, 0x60 },		/*{REG_COM16, 0x38},*/
 	{ 0x56, 0x40 },
 
-	{ 0x34, 0x11 }, { REG_COM11, COM11_EXP | COM11_HZAUTO },
+	{ 0x34, 0x11 }, { REG_COM11, COM11_EXP | COM11_HZAUTO | COM11_NIGHT },
 	{ 0xa4, 0x82/*Was 0x88*/ }, { 0x96, 0 },
 	{ 0x97, 0x30 }, { 0x98, 0x20 },
 	{ 0x99, 0x30 }, { 0x9a, 0x84 },
 	{ 0x9b, 0x29 }, { 0x9c, 0x03 },
 	{ 0x9d, 0x4c }, { 0x9e, 0x3f },
 	{ 0x78, 0x04 },
-
+        
+        
 	/* Extra-weird stuff.  Some sort of multiplexor register */
 	{ 0x79, 0x01 }, { 0xc8, 0xf0 },
 	{ 0x79, 0x0f }, { 0xc8, 0x00 },
@@ -577,6 +581,7 @@ static void captureImg(uint16_t wg, uint16_t hg){
 
 	while (!(PIND & 8));//wait for high
 	while ((PIND & 8));//wait for low
+        //VSYNC из Hi в Lo, начался новый фрейм.
 
     y = hg;
 	while (y--){
@@ -584,15 +589,18 @@ static void captureImg(uint16_t wg, uint16_t hg){
 	    //while (!(PIND & 256));//wait for high
 		while (x--){
 			while ((PIND & 4));//wait for low
-            UDR0 = (PINC & 15) | (PIND & 240);
-        	while (!(UCSR0A & (1 << UDRE0)));//wait for byte to transmit
+                //Проверяем, пуст ли буфер последовательного порта.
+        	while (!(UCSR0A & (1 << UDRE0)));//wait for byte to transmit http://avrprog.blogspot.ru/2013/03/usart0.html
+           UDR0 = (PINC & 15) | (PIND & 240);
+
 			while (!(PIND & 4));//wait for high
 			while ((PIND & 4));//wait for low
+                        // Здесь второй байт. Его можно не читать.
 			while (!(PIND & 4));//wait for high
 		}
 	  //  while ((PIND & 256));//wait for low
 	}
-   	_delay_ms(100);
+   	//_delay_ms(100);
 }
 
 void setup(){
