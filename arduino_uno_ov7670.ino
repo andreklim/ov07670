@@ -579,7 +579,7 @@ static void captureImg(uint16_t wg, uint16_t hg){
 
 	StringPgm(PSTR("*RDY*"));
 
-	while (!(PIND & 8));//wait for high
+	while (!(PIND & 8));//wait for high D3 - VSYNC
 	while ((PIND & 8));//wait for low
         //VSYNC из Hi в Lo, начался новый фрейм.
 
@@ -588,7 +588,7 @@ static void captureImg(uint16_t wg, uint16_t hg){
         x = wg;
 	    //while (!(PIND & 256));//wait for high
 		while (x--){
-			while ((PIND & 4));//wait for low
+			while ((PIND & 4));//wait for low D2 -PCLK
                 //Проверяем, пуст ли буфер последовательного порта.
         	while (!(UCSR0A & (1 << UDRE0)));//wait for byte to transmit http://avrprog.blogspot.ru/2013/03/usart0.html
            UDR0 = (PINC & 15) | (PIND & 240);
@@ -608,7 +608,7 @@ void setup(){
 	camInit();
 	setRes();
 	setColor();
-	wrReg(0x11, 12);
+	wrReg(0x11, 12); //делитель частоты. чем меньше, тем быстрее
 }
 
 
