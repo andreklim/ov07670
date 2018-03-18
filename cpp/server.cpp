@@ -184,6 +184,15 @@ image = Mat::zeros(240 , 320, CV_8UC1);
 
 int ready = 0;
     do {
+        // std::cerr << "Loop" << std::endl;
+
+//Используем select для порта. Иначе постоянный цикл и нагрузка 100%        
+                fd_set fds;
+                FD_ZERO(&fds);
+                FD_SET(fd, &fds);
+                struct timeval timeout = { 10, 0 }; /* 10 seconds */
+        int ret = select(fd+1, &fds, NULL, NULL, &timeout);
+//---------------------------------------------------------
         bytes_read = read(fd, read_bytes, 1000000); 
         if(bytes_read!=0) {
 
