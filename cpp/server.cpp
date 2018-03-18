@@ -12,14 +12,17 @@
 #include <net/if.h>
 #include <unistd.h> 
 #include <string.h>
-#include <fcntl.h> // File control definitions
-#include <errno.h> // Error number definitions
-#include <termios.h> // POSIX terminal control definitionss
-#include <time.h>   // time calls
+#include <fcntl.h> 
+#include <errno.h> 
+#include <termios.h> 
+#include <time.h>   
 #include <condition_variable>
 #include <mutex>
 #include <thread>
-
+#include <vector>
+#include <algorithm>
+#include <numeric>
+#include <future>
 
 using namespace cv;
 using namespace std;
@@ -29,19 +32,21 @@ void *display(void *);
 void *getvideo(void *);
 int configure_port(int fd);
 int open_port(void);
+void removeThread(std::thread::id id);
 
 
 
-int capDev = 0;
 Mat image;
-int fd;
+int fd; //com port
 unsigned char read_bytes[1000000];
 char pChars[1000000];
 std::condition_variable m_condVar;
 std::mutex m_mutex;
 int Lock=0;
+const char tty[] = "/dev/ttyACM0";
+std::vector<std::thread> threads(8);
+std::map<std::thread::id, int> Locks;
 
-  //  VideoCapture cap(capDev); // open the default camera
     
 
    
@@ -60,11 +65,15 @@ int main(int argc, char** argv)
     struct  sockaddr_in localAddr,
                         remoteAddr;
     pthread_t thread_id, thread_getvideo;
+
     
            
     int addrLen = sizeof(struct sockaddr_in);
-
-       
+//Open serial port
+        fd = open_port();
+        configure_port(fd);
+    
+//Start listen    
     if ( (argc > 1) && (strcmp(argv[1],"-h") == 0) ) {
           std::cerr << "usage: ./cv_video_srv [port] [capture device]\n" <<
                        "port           : socket port (4097 default)\n" <<
@@ -80,11 +89,6 @@ int main(int argc, char** argv)
          perror("socket() call failed!!");
     }    
 
-        fd = open_port();
-        configure_port(fd);
-    
-    
-    
     localAddr.sin_family = AF_INET;
     localAddr.sin_addr.s_addr = INADDR_ANY;
     localAddr.sin_port = htons( port );
@@ -99,12 +103,12 @@ int main(int argc, char** argv)
     
     std::cout <<  "Waiting for connections...\n"
               <<  "Server Port:" << port << std::endl;
-
+//Start capture serial
 //              pthread_create(&thread_getvideo,NULL,getvideo,NULL);
       std::thread t_getvideo(getvideo, &remoteSocket);
 
  
-image = Mat::zeros(240 , 320, CV_8UC1);
+
               
     //accept connection from an incoming client
     while(1){
@@ -121,9 +125,9 @@ image = Mat::zeros(240 , 320, CV_8UC1);
     } 
     std::cout << "Connection accepted" << std::endl;
 
-    pthread_create(&thread_id,NULL,display,&remoteSocket);
+   // pthread_create(&thread_id,NULL,display,&remoteSocket);
     
-   //  std::thread t(display, &remoteSocket);
+     threads.push_back(std::thread (display, &remoteSocket));
    //  t.join();
      //pthread_join(thread_id,NULL);
 
@@ -135,57 +139,38 @@ image = Mat::zeros(240 , 320, CV_8UC1);
 }
 
 void *display(void *ptr){
-    std::cerr << "Start";
+    //std::cerr << "Start";
     int socket = *(int *)ptr;
+   Locks.insert(std::pair<std::thread::id, int>(std::this_thread::get_id(),0));
+
     std::unique_lock<std::mutex> mlock(m_mutex);
     //OpenCV Code
     //----------------------------------------------------------
 
-    Mat img, imgGray, tmp;
-    img = Mat::zeros(240 , 320, CV_8UC1);   
-     //make it continuous
-    if (!img.isContinuous()) {
-        img = img.clone();
-    }
-
-    int imgSize = img.total() * img.elemSize();
+    int imgSize = image.total() * image.elemSize();
     int bytes = 0;
-    int key;
-    
 
-    //make img continuos
-    if ( ! img.isContinuous() ) { 
-          img = img.clone();
-          imgGray = img.clone();
-    }
-        
- //   std::cout << "Image Size:" << imgSize << std::endl;
+
+
+
 
     while(1) {
-                //
-            /* get a frame from camera */
-                //cap >> img;
-                //======================
-                //tmp = imread( "./ellipses.jpg", 1 );
-                
-                //imgSize = img.total() * img.elemSize();
-            //std::cerr << "bytes = " << img << std::endl;
-                //do video processing here 
-                //cvtColor(img, imgGray, CV_BGR2GRAY);
-//cout << "Image size" << image;
 
-//m_condVar.wait(mlock, [](){return Lock == 1;});
-img = image;
-std::cerr << "Start";
                 //send processed image
-                if ((bytes = send(socket, img.data, imgSize, 0)) < 0){
+                if ((bytes = send(socket, image.data, imgSize, 0)) < 0){
                      std::cerr << "bytes = " << bytes << std::endl;
+                     
+                     //Remove thread from vector
+                         //std::lock_guard<std::mutex> lock(threadMutex);
+                        threads.push_back(
+                        std::thread([]() {
+                        std::async(removeThread, std::this_thread::get_id());
+                        })
+                                );
                      break;
-                } 
-std::cerr << "Stop";                
-m_condVar.wait(mlock, [](){return Lock == 1;});
-std::cerr << "Cond";
-Lock=0;
+                }               
+        m_condVar.wait(mlock, [](){return Lock == 1;});
+        Lock=0;
         
     }
 
@@ -193,50 +178,45 @@ Lock=0;
 
 void *getvideo(void *ptr) {
  
-    int bytes_read;
+int bytes_read;
 int byte_count;
 int k=0;
 int start_frame = 0;
 const char READY[] = "*RDY*";
+image = Mat::zeros(240 , 320, CV_8UC1);
 
 int ready = 0;
     do {
         bytes_read = read(fd, read_bytes, 1000000); 
-if(bytes_read!=0) {
+        if(bytes_read!=0) {
 
-        k++;
-            for(int i=0; i<bytes_read; i++) {
+                k++;
+                    for(int i=0; i<bytes_read; i++) {
 
-	    if(read_bytes[i]==READY[ready]) {ready++; 
+                if(read_bytes[i]==READY[ready]) {ready++; 
 
-		    if(ready>4) 
-			{start_frame=1; 
-			printf("Start frame\n"); 
-			ready=0;
+                    if(ready>4) 
+                    {start_frame=1; 
+                    printf("Start frame\n"); 
+                    ready=0;
 
-		        image = cv::Mat(240,320,CV_8UC1, (unsigned char *)pChars);
-                Lock=1;
-                //std::unique_lock<std::mutex> mlock(m_mutex);
-                m_condVar.notify_all();
-                //Lock=0;
-                //m_condVar.notify_all();
+                        image = cv::Mat(240,320,CV_8UC1, (unsigned char *)pChars);
+                        Lock=1;
+
+                        m_condVar.notify_all();
 
 
-/* save to file                
-char filename[32];
-sprintf(filename, "./test%d.bmp", k);
-imwrite( filename, image );
-*/
 
-			byte_count=0;
-			continue;
-			}
-	    }
-	    else{ready=0;}
-	    pChars[byte_count] = read_bytes[i]; byte_count++;
 
+                    byte_count=0;
+                    continue;
+                    }
+                }
+                else{ready=0;}
+                pChars[byte_count] = read_bytes[i]; byte_count++;
+
+                }
         }
-}
     }
 
     while(1);
@@ -248,12 +228,13 @@ int open_port(void)
 {
     int fd; // file description for the serial port
     
-    fd = open("/dev/ttyACM0", O_RDWR | O_NOCTTY | O_NDELAY);
+    fd = open(tty, O_RDWR | O_NOCTTY | O_NDELAY);
     
     if(fd == -1) // if open is unsucessful
     {
 	//perror("open_port: Unable to open /dev/ttyS0 - ");
-	printf("open_port: Unable to open /dev/ttyS0. \n");
+	printf("open_port: Unable to open %s \n", tty);
+    exit(1);
     }
     else
     {
@@ -280,3 +261,14 @@ int configure_port(int fd)      // configure the port
     return(fd);
 
 } //configure_port
+
+void removeThread(std::thread::id id)
+{
+   // std::lock_guard<std::mutex> lock(threadMutex);
+    auto iter = std::find_if(threads.begin(), threads.end(), [=](std::thread &t) { return (t.get_id() == id); });
+    if (iter != threads.end())
+    {
+        iter->detach();
+        threads.erase(iter);
+    }
+}
