@@ -44,7 +44,7 @@ char pChars[1000000];
 std::condition_variable m_condVar;
 std::mutex m_mutex;
 int Lock=0;
-const char tty[] = "/dev/ttyACM0";
+const char tty[] = "/dev/ttyACM1";
 #define THREAD_MAX  8
 std::vector<std::thread> threads(THREAD_MAX);
 std::map<std::thread::id, int> Locks;

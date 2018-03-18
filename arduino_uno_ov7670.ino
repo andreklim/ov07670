@@ -300,6 +300,8 @@ const struct regval_list qvga_ov7670[] PROGMEM = {
 	{ REG_VSTART, 0x02 },
 	{ REG_VSTOP, 0x7a },
 	{ REG_VREF, 0x0a },
+//Resolution        
+        { REG_COM14, 0x11 }, 
 
 
 /*	{ REG_HSTART, 0x16 },
@@ -335,16 +337,16 @@ const struct regval_list ov7670_default_regs[] PROGMEM = {//from the linux drive
 	* Set the hardware window.  These values from OV don't entirely
 	* make sense - hstop is less than hstart.  But they work...
 	*/
+/*
 	{ REG_HSTART, 0x13 }, { REG_HSTOP, 0x01 },
 	{ REG_HREF, 0xb6 }, { REG_VSTART, 0x02 },
-//	{ REG_HREF, 0xb6 }, { REG_VSTART, 0x02 },
 
 	{ REG_VSTOP, 0x7a }, { REG_VREF, 0x0a },
-
+*/
 	{ REG_COM3, 0 }, { REG_COM14, 0 },
 	/* Mystery scaling numbers */
 	{ 0x70, 0x3a }, { 0x71, 0x35 },
-	{ 0x72, 0x11 }, { 0x73, 0xf0 },
+	{ 0x72, 0x11 }, { 0x73, 0xf1 },
 	{ 0xa2,/* 0x02 changed to 1*/1 }, { REG_COM10, 0x0 },
 	/* Gamma curve values */
 	{ 0x7a, 0x20 }, { 0x7b, 0x10 },
