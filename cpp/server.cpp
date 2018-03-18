@@ -44,7 +44,8 @@ std::condition_variable m_condVar;
 std::mutex m_mutex;
 int Lock=0;
 const char tty[] = "/dev/ttyACM0";
-std::vector<std::thread> threads(8);
+#define THREAD_MAX  8
+std::vector<std::thread> threads(THREAD_MAX);
 std::map<std::thread::id, int> Locks;
 
     
@@ -112,29 +113,26 @@ int main(int argc, char** argv)
               
     //accept connection from an incoming client
     while(1){
-    //if (remoteSocket < 0) {
-    //    perror("accept failed!");
-    //    exit(1);
-    //}
        
      remoteSocket = accept(localSocket, (struct sockaddr *)&remoteAddr, (socklen_t*)&addrLen);  
       std::cout << remoteSocket<< "32"<< std::endl;
-    if (remoteSocket < 0) {
-        perror("accept failed!");
-        exit(1);
-    } 
-    std::cout << "Connection accepted" << std::endl;
-
-   // pthread_create(&thread_id,NULL,display,&remoteSocket);
-    
-     threads.push_back(std::thread (display, &remoteSocket));
-   //  t.join();
-     //pthread_join(thread_id,NULL);
+      if(Locks.size()>THREAD_MAX) {
+        std::cout << "max_thread error > "<< THREAD_MAX<< std::endl;  
+        close(remoteSocket);
+      }
+     
+            if (remoteSocket < 0) {
+         //       perror("accept failed!");
+        //       exit(1);
+            }
+        else{ 
+            std::cout << "Connection accepted" << std::endl;
+            
+            threads.push_back(std::thread (display, &remoteSocket));
+        }
 
     }
-    //pthread_join(thread_id,NULL);
-    //close(remoteSocket);
-
+std::cout << "End" << std::endl;
     return 0;
 }
 
@@ -150,27 +148,26 @@ void *display(void *ptr){
     int imgSize = image.total() * image.elemSize();
     int bytes = 0;
 
-
-
-
-
     while(1) {
 
                 //send processed image
-                if ((bytes = send(socket, image.data, imgSize, 0)) < 0){
-                     std::cerr << "bytes = " << bytes << std::endl;
+                if ((bytes = send(socket, image.data, imgSize, 0)) < 0 || (bytes != imgSize)){
+                  //   std::cerr << "bytes = " << bytes << std::endl;
                      
                      //Remove thread from vector
                          //std::lock_guard<std::mutex> lock(threadMutex);
-                        threads.push_back(
-                        std::thread([]() {
-                        std::async(removeThread, std::this_thread::get_id());
-                        })
+                                threads.push_back(
+                                std::thread([]() {
+                                std::async(removeThread, std::this_thread::get_id());
+                                })
                                 );
+                                Locks.erase(Locks.find(std::this_thread::get_id()));
+                             //   std::cerr << "Break "<< std::this_thread::get_id() << std::endl;
                      break;
-                }               
-        m_condVar.wait(mlock, [](){return Lock == 1;});
-        Lock=0;
+                } 
+
+        m_condVar.wait(mlock, [](){return Locks[std::this_thread::get_id()] == 1;});
+        Locks[std::this_thread::get_id()] = 0;
         
     }
 
@@ -201,11 +198,17 @@ int ready = 0;
                     ready=0;
 
                         image = cv::Mat(240,320,CV_8UC1, (unsigned char *)pChars);
-                        Lock=1;
+                        
+                        if(Locks.size()>0) {     
+                            std::cerr << "Send new frame to "<< Locks.size() << " clients" << std::endl;
+                                    for (std::pair<std::thread::id, int> element : Locks) {
+                                        Locks[element.first] = 1;
+                                    }
+                            
 
-                        m_condVar.notify_all();
+                                m_condVar.notify_all();
 
-
+                        }
 
 
                     byte_count=0;
