@@ -8,6 +8,7 @@
 #include <sys/socket.h> 
 #include <arpa/inet.h>
 #include <unistd.h>
+#include "scaling.h"
 
 using namespace cv;
 
@@ -52,7 +53,7 @@ int main(int argc, char** argv)
     //----------------------------------------------------------
 
     Mat img;
-    img = Mat::zeros(240 , 320, CV_8UC1);    
+    img = Mat::zeros(Hd , Wd, CV_8UC1);    
     int imgSize = img.total() * img.elemSize();
     uchar *iptr = img.data;
     int bytes = 0;

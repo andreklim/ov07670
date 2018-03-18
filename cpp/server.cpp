@@ -23,6 +23,7 @@
 #include <algorithm>
 #include <numeric>
 #include <future>
+#include "scaling.h"
 
 using namespace cv;
 using namespace std;
@@ -180,7 +181,8 @@ int byte_count;
 int k=0;
 int start_frame = 0;
 const char READY[] = "*RDY*";
-image = Mat::zeros(240 , 320, CV_8UC1);
+Mat img_tmp;
+image = Mat::zeros(Hd , Wd, CV_8UC1);
 
 int ready = 0;
     do {
@@ -205,8 +207,11 @@ int ready = 0;
                     {start_frame=1; 
                     printf("Start frame\n"); 
                     ready=0;
-
-                        image = cv::Mat(240,320,CV_8UC1, (unsigned char *)pChars);
+std::cerr << "Send new frame to " << img_tmp.size() << std::endl;
+imwrite( "./test.bmp", img_tmp );
+                        img_tmp = cv::Mat(H,W,CV_8UC1, (unsigned char *)pChars);
+                        cv::resize(img_tmp, image, image.size() , 0, 0, INTER_CUBIC);
+                        
                         
                         if(Locks.size()>0) {     
                             std::cerr << "Send new frame to "<< Locks.size() << " clients" << std::endl;

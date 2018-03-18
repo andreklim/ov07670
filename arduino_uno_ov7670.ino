@@ -610,6 +610,8 @@ void setup(){
 	setColor();
 	wrReg(0x11, 12); //делитель частоты. чем меньше, тем быстрее
 }
+//http://wp.sps.esy.es/spselectro/ov7670-pervyj-zapusk/
+//https://github.com/yandex/smart/blob/master/drivers/media/i2c/ov7670.c
 
 
 void loop(){
